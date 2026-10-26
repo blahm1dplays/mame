@@ -33,11 +33,15 @@ inline int64_t floor_shift(int64_t n, unsigned bits)
 {
  return n >= 0 ? n >> bits : -((-n + (int64_t(1) << bits) - 1) >> bits);
 }
+inline bool excluded(uint32_t tex)
+{
+ return tex == 0x009d138a || tex == 0x00a9d650 || tex == 0x00a9d970 || tex == 0x0d214eb2;
+}
 inline bool selected(uint32_t ptr, uint32_t tex)
 {
  ptr &= 0xffffff;
  uint32_t const bank = ptr >> 12;
- if (tex == 0x009d138a || tex == 0x00a9d650 || tex == 0x00a9d970 || tex == 0x0d214eb2) return false;
+ if (excluded(tex)) return false;
  return (bank >= 0x001 && bank < 0x04c) || bank == 0x04f || bank == 0x050 ||
   bank == 0x185 || bank == 0x186 || bank == 0x189 || bank == 0x18a || bank == 0x18e ||
   (ptr == 0x04d12c && (tex == 0x00a92b00 || tex == 0x00a92b40 || tex == 0x00e55700)) ||
@@ -64,7 +68,13 @@ uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t li
 {
  if (!long_format) return 65535;
  if (shaft(ptr,tex)) return depth_intensity(rounded_z);
- if (!selected(ptr,tex) || !light_valid) return 65535;
+ // Lit draws outside the calibrated selection (materials the capture didn't
+ // cover, e.g. the continue pit's spikes) get 1.125 t like banks 04f/050/18e
+ // instead of full intensity.
+ bool const chosen = selected(ptr,tex);
+ bool const fallback = !chosen && !excluded(tex) && (blend == 0x4b23cb00 || blend == 0x4b23dd00) &&
+  (light[0] || light[1] || light[2]);
+ if ((!chosen && !fallback) || !light_valid) return 65535;
  uint32_t const bank = (ptr >> 12) & 0xfff;
  bool const environment = bank >= 1 && bank < 0x1d;
  bool const usable = (packed & 0x3fffffff) && (ptr >> 24) >= 15 &&
@@ -84,6 +94,7 @@ uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t li
   }
   uint32_t const index = uint32_t(std::clamp<int64_t>(floor_shift(dot,26),-64,63)) & 127;
   value = uint32_t(read(index)) << 8;
+  if (fallback) return std::min(value+(value >> 3),65535U);
   uint32_t const signature = uint32_t(read(0)) | (uint32_t(read(1))<<8) | (uint32_t(read(2))<<16) | (uint32_t(read(3))<<24);
   if (environment || bank == 0x050)
    for (auto const &m : materials)

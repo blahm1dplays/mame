@@ -23,6 +23,11 @@ int main()
     assert(evaluate(0x0f023000,256,true,true,0x009d138a)==65535);
     assert(evaluate(0x0f058080,256,true,true,0x006d7800)==59392);
     assert(evaluate(0x0f02f170,256,true,true,0x058252c0)==59392);
+    assert(evaluate(0x0f058150)==46080);
+    assert(evaluate(0x0f04d0b0)==46080);
+    assert(evaluate(0x0f058150,0)==65535);
+    assert(evaluate(0x0f058150,256,true,true,0x009d138a)==65535);
+    assert(intensity(256,matrix,light,true,0x0f058150,0,0x00000000,true,0,read)==65535);
     assert(depth_intensity(0)==65535);
     assert(depth_intensity(int64_t(500000)*32768)==12288);
     for(auto const &m:materials) {
@@ -46,5 +51,5 @@ int main()
     assert(channel(255,0,255,255,0xdd23dd00,false,0)==0);
     assert(sign10(512)==-512 && sign10(1023)==-1 && sign10(511)==511);
     assert(floor_shift(-67108865,26)==-2 && floor_shift(67108865,26)==1);
-    puts("PASS: MK4 v17 guards, all 23 material entries, rim, shaft, rectangle, blend and depth cue cases");
+    puts("PASS: MK4 v17 guards, all 23 material entries, rim, shaft, fallback, rectangle, blend and depth cue cases");
 }
