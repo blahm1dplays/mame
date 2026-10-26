@@ -33,11 +33,15 @@ inline int64_t floor_shift(int64_t n, unsigned bits)
 {
  return n >= 0 ? n >> bits : -((-n + (int64_t(1) << bits) - 1) >> bits);
 }
+inline bool excluded(uint32_t tex)
+{
+ return tex == 0x009d138a || tex == 0x00a9d650 || tex == 0x00a9d970 || tex == 0x0d214eb2;
+}
 inline bool selected(uint32_t ptr, uint32_t tex)
 {
  ptr &= 0xffffff;
  uint32_t const bank = ptr >> 12;
- if (tex == 0x009d138a || tex == 0x00a9d650 || tex == 0x00a9d970 || tex == 0x0d214eb2) return false;
+ if (excluded(tex)) return false;
  return (bank >= 0x001 && bank < 0x04c) || bank == 0x04f || bank == 0x050 ||
   bank == 0x185 || bank == 0x186 || bank == 0x189 || bank == 0x18a || bank == 0x18e ||
   (ptr == 0x04d12c && (tex == 0x00a92b00 || tex == 0x00a92b40 || tex == 0x00e55700)) ||
@@ -59,12 +63,18 @@ inline uint32_t depth_intensity(int64_t rounded_z)
 
 template <typename Reader>
 uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t light[3],
- bool light_valid, uint32_t ptr, uint32_t tex, uint32_t blend, uint8_t alpha,
+ bool light_valid, uint32_t ptr, uint32_t tex, uint32_t blend,
  bool long_format, int64_t rounded_z, Reader read)
 {
  if (!long_format) return 65535;
  if (shaft(ptr,tex)) return depth_intensity(rounded_z);
- if (!selected(ptr,tex) || !light_valid) return 65535;
+ // Lit draws outside the calibrated selection (materials the capture didn't
+ // cover, e.g. the continue pit's spikes) get 1.125 t like banks 04f/050/18e
+ // instead of full intensity.
+ bool const chosen = selected(ptr,tex);
+ bool const fallback = !chosen && !excluded(tex) && (blend == 0x4b23cb00 || blend == 0x4b23dd00) &&
+  (light[0] || light[1] || light[2]);
+ if ((!chosen && !fallback) || !light_valid) return 65535;
  uint32_t const bank = (ptr >> 12) & 0xfff;
  bool const environment = bank >= 1 && bank < 0x1d;
  bool const usable = (packed & 0x3fffffff) && (ptr >> 24) >= 15 &&
@@ -84,6 +94,7 @@ uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t li
   }
   uint32_t const index = uint32_t(std::clamp<int64_t>(floor_shift(dot,26),-64,63)) & 127;
   value = uint32_t(read(index)) << 8;
+  if (fallback) return std::min(value+(value >> 3),65535U);
   uint32_t const signature = uint32_t(read(0)) | (uint32_t(read(1))<<8) | (uint32_t(read(2))<<16) | (uint32_t(read(3))<<24);
   if (environment || bank == 0x050)
    for (auto const &m : materials)
@@ -113,7 +124,8 @@ uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t li
    if (bank == 0x04f || bank == 0x050 || bank == 0x18e) value = std::min(value+(value >> 3),65535U);
    else value = uint32_t(std::clamp<int64_t>(int64_t(value)*2-32768,0,131071));
   }
-  if (alpha != 255) value = uint32_t(4096 + floor_shift((int64_t(value)-4096)*alpha,8)) & 0x1ffff;
+  // No reg 4E fade here: where MK4 fades a lit scene (the continue pit) it
+  // shrinks the light vector itself, and a second fade made the fighter black.
  }
  return value;
 }
@@ -129,8 +141,21 @@ inline uint16_t rectangle_color(uint16_t color, uint32_t rgb)
  return result;
 }
 
+// Depth cue for DD23DD00 draws: a linear fade to black between the depths in
+// reg 58's low and high halves (1000h and 1f00h in MK4). Inferred, not measured:
+// the game uses this mode only on geometry that recedes into the distance.
+// Returns the part of the colour kept, 256 = all.
+inline uint32_t depth_cue(int32_t depth, uint32_t range)
+{
+ int32_t const start=range&0xffff, end=range>>16;
+ if (end<=start || depth<=start) return 256;
+ if (depth>=end) return 0;
+ return 256-uint32_t((depth-start)*256/(end-start));
+}
+
 // One channel after texture filtering, through blending and RGB555 packing.
-inline uint32_t channel(uint32_t src, uint32_t dst, uint32_t i8, uint32_t alpha, uint32_t blend, bool depth)
+// keep is the depth cue's factor for DD23DD00 draws, applied before rounding.
+inline uint32_t channel(uint32_t src, uint32_t dst, uint32_t i8, uint32_t alpha, uint32_t blend, bool depth, uint32_t keep=256)
 {
  uint32_t sa=alpha&255, da=(alpha>>8)&255;
  bool const lit=blend==0x4b23cb00 || blend==0x4b23dd00;
@@ -144,6 +169,7 @@ inline uint32_t channel(uint32_t src, uint32_t dst, uint32_t i8, uint32_t alpha,
  uint32_t const a=(src*factor)>>8;
  uint32_t const b=((mul || shade ? a : dst)*(mul ? dst : shade ? (lit ? sa : (i8&255)) : da*2))>>8;
  uint32_t out=mul ? b : add2 ? a+b : add1 ? a+dst : (lit || fog) ? (shade ? b : a) : shade ? a : src;
+ if (fog) out=(out*keep)>>8;
  if ((lit && i8!=255) || (fog && depth && i8<255)) out+=4;
  return std::min(out,255U)>>3;
 }
