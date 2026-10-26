@@ -42,7 +42,11 @@ int main()
     assert(channel(255,0,240,255,0x4b23cb00,false)==30);
     assert(channel(200,20,128,128,0x40b68800,false)==8);
     assert(channel(255,0,128,255,0xdd23dd00,true)==16);
+    assert(depth_cue(0x1000,0x1f001000)==256 && depth_cue(0x1780,0x1f001000)==128 && depth_cue(0x1f00,0x1f001000)==0);
+    assert(depth_cue(0x7fff,0)==256);
+    assert(channel(255,0,255,255,0xdd23dd00,false,128)==15);
+    assert(channel(255,0,255,255,0xdd23dd00,false,0)==0);
     assert(sign10(512)==-512 && sign10(1023)==-1 && sign10(511)==511);
     assert(floor_shift(-67108865,26)==-2 && floor_shift(67108865,26)==1);
-    puts("PASS: MK4 v17 guards, all 23 material entries, rim, shaft, alpha, rectangle and blend cases");
+    puts("PASS: MK4 v17 guards, all 23 material entries, rim, shaft, alpha, rectangle, blend and depth cue cases");
 }

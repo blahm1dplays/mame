@@ -42,6 +42,7 @@ struct mz_poly_extra_data
 	uint32_t        blend = 0;
 	bool            mk4_v17 = false;
 	bool            mk4_depth = false;
+	uint32_t        mk4_depth_cue = 0;
 	uint8_t         (*get_texel)(const void *, int, int, int);
 };
 

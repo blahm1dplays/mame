@@ -1258,8 +1258,12 @@ void midzeus_renderer::zeus_draw_quad(int long_fmt, const uint32_t *databuffer, 
 		}
 	}
 
+	// DD23DD00 draws take the depth cue in place of the shaft fade, so the
+	// Well shaft (which the continue screen draws in this mode) isn't darkened twice
+	bool const depth_cued = calibrated_mk4 && m_state.m_zeusbase[0x5c] == 0xdd23dd00;
 	extra.mk4_v17 = calibrated_mk4;
-	extra.mk4_depth = calibrated_mk4 && long_fmt && mk4_v17::shaft(m_state.m_zeus_unkbase, texdata);
+	extra.mk4_depth = calibrated_mk4 && long_fmt && !depth_cued && mk4_v17::shaft(m_state.m_zeus_unkbase, texdata);
+	extra.mk4_depth_cue = depth_cued ? m_state.m_zeusbase[0x58] : 0;
 	extra.ctrl_word = ctrl_word;
 	extra.solidcolor = m_state.m_zeusbase[0x00] & 0x7fff;
 	extra.zoffset = m_state.m_zeusbase[0x7e] >> 16;
@@ -1438,9 +1442,10 @@ void midzeus_renderer::render_poly(int32_t scanline, const extent_t& extent, con
 
 				if (object.mk4_v17)
 				{
-					outr = mk4_v17::channel(srcr, dstr, i8, object.alpha, object.blend, object.mk4_depth);
-					outg = mk4_v17::channel(srcg, dstg, i8, object.alpha, object.blend, object.mk4_depth);
-					outb = mk4_v17::channel(srcb, dstb, i8, object.alpha, object.blend, object.mk4_depth);
+					uint32_t const keep = mk4_v17::depth_cue(depth, object.mk4_depth_cue);
+					outr = mk4_v17::channel(srcr, dstr, i8, object.alpha, object.blend, object.mk4_depth, keep);
+					outg = mk4_v17::channel(srcg, dstg, i8, object.alpha, object.blend, object.mk4_depth, keep);
+					outb = mk4_v17::channel(srcb, dstb, i8, object.alpha, object.blend, object.mk4_depth, keep);
 				}
 				else
 				{

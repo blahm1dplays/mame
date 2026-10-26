@@ -129,8 +129,21 @@ inline uint16_t rectangle_color(uint16_t color, uint32_t rgb)
  return result;
 }
 
+// Depth cue for DD23DD00 draws: a linear fade to black between the depths in
+// reg 58's low and high halves (1000h and 1f00h in MK4). Inferred, not measured:
+// the game uses this mode only on geometry that recedes into the distance.
+// Returns the part of the colour kept, 256 = all.
+inline uint32_t depth_cue(int32_t depth, uint32_t range)
+{
+ int32_t const start=range&0xffff, end=range>>16;
+ if (end<=start || depth<=start) return 256;
+ if (depth>=end) return 0;
+ return 256-uint32_t((depth-start)*256/(end-start));
+}
+
 // One channel after texture filtering, through blending and RGB555 packing.
-inline uint32_t channel(uint32_t src, uint32_t dst, uint32_t i8, uint32_t alpha, uint32_t blend, bool depth)
+// keep is the depth cue's factor for DD23DD00 draws, applied before rounding.
+inline uint32_t channel(uint32_t src, uint32_t dst, uint32_t i8, uint32_t alpha, uint32_t blend, bool depth, uint32_t keep=256)
 {
  uint32_t sa=alpha&255, da=(alpha>>8)&255;
  bool const lit=blend==0x4b23cb00 || blend==0x4b23dd00;
@@ -144,6 +157,7 @@ inline uint32_t channel(uint32_t src, uint32_t dst, uint32_t i8, uint32_t alpha,
  uint32_t const a=(src*factor)>>8;
  uint32_t const b=((mul || shade ? a : dst)*(mul ? dst : shade ? (lit ? sa : (i8&255)) : da*2))>>8;
  uint32_t out=mul ? b : add2 ? a+b : add1 ? a+dst : (lit || fog) ? (shade ? b : a) : shade ? a : src;
+ if (fog) out=(out*keep)>>8;
  if ((lit && i8!=255) || (fog && depth && i8<255)) out+=4;
  return std::min(out,255U)>>3;
 }
