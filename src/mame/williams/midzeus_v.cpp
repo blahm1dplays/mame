@@ -1111,7 +1111,7 @@ uint32_t midzeus_state::zeus_mk4_v17_intensity(uint32_t packed_normal, uint32_t 
 {
 	const void *const table = waveram0_ptr_from_block_addr(m_zeus_unkbase);
 	return mk4_v17::intensity(packed_normal, m_zeus_matrix, m_zeus_light,
-		m_zeus_light_valid, m_zeus_unkbase, texdata, m_zeusbase[0x5c], uint8_t(m_zeusbase[0x4e]),
+		m_zeus_light_valid, m_zeus_unkbase, texdata, m_zeusbase[0x5c],
 		long_format, rounded_z, [table](unsigned index) { return WAVERAM_READ8(table, index); });
 }
 

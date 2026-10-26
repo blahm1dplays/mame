@@ -59,7 +59,7 @@ inline uint32_t depth_intensity(int64_t rounded_z)
 
 template <typename Reader>
 uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t light[3],
- bool light_valid, uint32_t ptr, uint32_t tex, uint32_t blend, uint8_t alpha,
+ bool light_valid, uint32_t ptr, uint32_t tex, uint32_t blend,
  bool long_format, int64_t rounded_z, Reader read)
 {
  if (!long_format) return 65535;
@@ -113,7 +113,8 @@ uint32_t intensity(uint32_t packed, const int16_t matrix[3][3], const int16_t li
    if (bank == 0x04f || bank == 0x050 || bank == 0x18e) value = std::min(value+(value >> 3),65535U);
    else value = uint32_t(std::clamp<int64_t>(int64_t(value)*2-32768,0,131071));
   }
-  if (alpha != 255) value = uint32_t(4096 + floor_shift((int64_t(value)-4096)*alpha,8)) & 0x1ffff;
+  // No reg 4E fade here: where MK4 fades a lit scene (the continue pit) it
+  // shrinks the light vector itself, and a second fade made the fighter black.
  }
  return value;
 }
